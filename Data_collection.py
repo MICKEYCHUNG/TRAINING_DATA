@@ -36,12 +36,13 @@ def catch_the_data_of_twstock(rawdata_folder,year,month,code):
     stock_data= stock.fetch_from(year,month)
     df = pd.DataFrame(stock_data)
     if not df.empty:
-        file_name=f'{rawdata_folder}/{code} .txt'
-        df.to_csv(file_name, sep='\t', index=False)
+        file_name=f'{rawdata_folder}/{code}.txt'
         end_time=time.time()
-        return code,'time',end_time-start_time
+        print(code,'time',end_time-start_time)
+        return df,file_name
     else:
-        return code,'no data'
+        print(code,'No data')
+        return None,None
 
 #Collect the num and code name from the folder_path
 def Database(rawdata_folder,files):
@@ -60,18 +61,16 @@ def Database(rawdata_folder,files):
         dbf=pd.DataFrame(database)
         for file in files:
             if not file in list(dbf['code_num']):
-                print(file)
                 data=pd.read_csv(os.path.join(rawdata_folder,f'{file}.txt'), sep="\t", header=0)
                 df = pd.DataFrame(data)
                 quantity=row=df.shape[0]
                 new_row={'code_num': file, 'quantity': quantity}
                 dbf = pd.concat([dbf, pd.DataFrame([new_row])])
     dbf.to_csv(os.path.join(os.path.dirname(rawdata_folder),'data_base.txt'), index=False)
-    print(len(dbf))
     return dbf
 
-#drawing the fig from the files
-def drawing_fig_files(folder_path):
+#collecting the training fig and file from the raw_data
+def collecting(folder_path,dbf,files):
     start_time=time.time()
     save_folder = os.path.join(os.path.dirname(folder_path),'data_fig')
     save_folder_f = os.path.join(os.path.dirname(folder_path),'data_files')
@@ -85,11 +84,9 @@ def drawing_fig_files(folder_path):
     counter=[len(files_fall),len(files_rise)]
     condition=['fall','rise']
 
-    dbf=Database(folder_path)
     dbf.set_index('code_num', inplace=True)
     quantity=0
 
-    files=check_data(folder_path)
     for file in files:
         quantity += dbf.loc[file,'quantity']
         if sum(counter)-quantity<0:
@@ -124,33 +121,54 @@ def drawing_fig_files(folder_path):
 
 #Catch the stock num from pdf
 def catch_table_from_pdf(pdf_path):
-    # 使用 tabula 讀取 PDF 文件中的表格數據
-    tables = tabula.read_pdf(pdf_path, pages="all")
-    # 將每個表格轉換為列表
-    table_data = []
-    for table in tables:
-        table_data.append(table.values.tolist())
-    table_data=np.vstack(table_data)
-    target_stock = []
-    # 遍歷表格數據中的每個元素
-    for row in table_data:
-        for cell in row:
-            # 如果元素是數字，則將其添加到數字列表中
-            if isinstance(cell, (int)):
-                if cell>1000:
-                    target_stock.append(str(cell))
-                else:
-                    target_stock.append('00'+str(cell))
-            elif isinstance(cell, str):
-                try:
-                    number = float(cell)
-                    if number>1000:
-                        target_stock.append(cell)
+    if os.path.exists(pdf_path):
+        tables = tabula.read_pdf(pdf_path, pages="all")
+        table_data = []
+        for table in tables:
+            table_data.append(table.values.tolist())
+        table_data=np.vstack(table_data)
+        target_stock = []
+        for row in table_data:
+            for cell in row:
+                if isinstance(cell, (int)):
+                    if cell>1000:
+                        target_stock.append(str(cell))
                     else:
-                        target_stock.append('00'+cell)
-                except ValueError:
-                    pass
-    return target_stock
+                        target_stock.append('00'+str(cell))
+                elif isinstance(cell, str):
+                    try:
+                        number = float(cell)
+                        if number>1000:
+                            target_stock.append(cell)
+                        else:
+                            target_stock.append('00'+cell)
+                    except ValueError:
+                        pass
+        return target_stock
+    else:
+        print('The file does not exist')
+        return None
+
+def update_raw_data(folder,dbf):
+    target_stock=dbf['code_num']
+    today = datetime.today()
+    for code in target_stock:
+        data=pd.read_csv(f'{folder}\{code}.txt',sep='\t',header=0)
+        df=pd.DataFrame(data)
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        last_date=df['date'].iloc[-1]
+        days_diff = (today.date() - last_date.date()).days
+        if days_diff>0:
+            month=last_date.month
+            year=last_date.year
+            dfu,file_name=catch_the_data_of_twstock(folder,year,month,code)
+            if not dfu.empty:
+                matching_index = dfu[dfu['date'] == last_date.strftime('%Y-%m-%d')].index
+                dfu = dfu.drop(dfu.index[0:matching_index[0]+1])
+                df=pd.concat([df,dfu])
+                df.to_csv(file_name,index=False,sep='\t')
+        else:
+            print('finished or check the folder')
 
 
 #-------main code----------
