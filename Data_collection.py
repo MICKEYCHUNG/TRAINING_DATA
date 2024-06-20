@@ -194,10 +194,9 @@ def update_raw_data(rawdata_folder,savefig_folder,savefiles_folder,start_code):
     database=pd.read_csv(os.path.join(os.path.dirname(rawdata_folder),'data_base.txt'))
     dbf=pd.DataFrame(database)
     target_stock=dbf['code_num']
-    index=dbf[dbf['code_num']==start_code].index
     today = datetime.today()
-    for i in range(len(target_stock)-index[0]):
-        code=dbf['code_num'].iloc[i+index[0]]
+    for i in range(len(target_stock)):
+        code=dbf['code_num'].iloc[i]
         data=pd.read_csv(f'{rawdata_folder}\{code}.txt',sep='\t',header=0)
         df=pd.DataFrame(data)
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
@@ -220,4 +219,5 @@ def update_raw_data(rawdata_folder,savefig_folder,savefiles_folder,start_code):
 #-------main code---------- 
 folder_path='D:/stock/raw_data'
 rawdata_folder,savefig_folder,savefiles_folder=create_folder(folder_path)
+update_raw_data(rawdata_folder,savefig_folder,savefiles_folder)
 collecting(rawdata_folder,savefig_folder,savefiles_folder)
